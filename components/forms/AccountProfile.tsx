@@ -22,6 +22,12 @@ import { ChangeEvent} from "react"
 import { Textarea } from "../ui/textarea"
 
 import { useState } from "react"
+import { isBase64Image } from "@/lib/utils"
+
+import { useUploadThing } from '@/lib/uploadthing'
+import { updateUser } from "@/lib/actions/user.actions"
+
+import { usePathname,useRouter } from "next/navigation"
 
 interface AccountProfileProps {
     user: {
@@ -36,7 +42,11 @@ interface AccountProfileProps {
 }
 
 const AccountProfile = ({user, btnTitle}: AccountProfileProps)=>{
-    const [files,setFiles] = useState<File[]>([])
+    const [files, setFiles] = useState<File[]>([])
+    const { startUpload } = useUploadThing('media')
+    
+    const router = useRouter()
+    const pathname = usePathname()
 
     const form = useForm({
         resolver:zodResolver(userValidation),
@@ -70,10 +80,33 @@ const AccountProfile = ({user, btnTitle}: AccountProfileProps)=>{
     }
 
     // 2. Define a submit handler.
-  function onSubmit(values: z.infer<typeof userValidation>) {
-    // Do something with the form values.
-    // ✅ This will be type-safe and validated.
-    console.log(values)
+  const onSubmit= async (values: z.infer<typeof userValidation>) => {
+      const blob = values.profile_photo;
+
+      const hasImagedChange = isBase64Image(blob)
+
+      if (hasImagedChange) {
+          const imgRes = await startUpload(files)
+
+          if (imgRes && imgRes[0].fileUrl) {
+              values.profile_photo = imgRes[0].fileUrl
+          }
+      }
+
+      await updateUser({
+            userId: user.id,
+            username: values.username,
+            name: values.name,
+            bio: values.bio,
+            image: values.profile_photo,
+            path: pathname
+      })
+
+      if (pathname === '/profile/edit') {
+          router.back()
+      } else {
+          router.push('/')
+      }
   }
 
     return(
